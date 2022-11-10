@@ -1,33 +1,52 @@
-import { Injectable } from '@nestjs/common';
+import {
+  ForbiddenException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { PrismaService } from '../prisma/prisma.service';
 import { User } from '@prisma/client';
+
+const MESSAGES = {
+  NOT_FOUND: 'User Not Found',
+  ALREADY_EXISTS: 'User already exists',
+};
 
 @Injectable()
 export class UsersService {
   constructor(private prisma: PrismaService) {}
 
-  create(email: string) {
-    return this.prisma.user.create({
-      data: {
-        email,
-      },
-    });
+  async create(email: string): Promise<User> {
+    const usersCount = await this.prisma.user.count({ where: { email } });
+
+    if (usersCount > 0) {
+      throw new ForbiddenException(MESSAGES.ALREADY_EXISTS);
+    }
+
+    return this.prisma.user.create({ data: { email } });
   }
 
   findAll(): Promise<User[]> {
     return this.prisma.user.findMany();
   }
 
-  findOne(id: number): Promise<User> {
-    return this.prisma.user.findUniqueOrThrow({
-      where: {
-        id,
-      },
-    });
+  async findOne(id: number): Promise<User> {
+    const user = await this.prisma.user.findUnique({ where: { id } });
+
+    if (!user) {
+      throw new NotFoundException(MESSAGES.NOT_FOUND);
+    }
+
+    return user;
   }
 
-  update(id: number, updateUserDto: UpdateUserDto) {
+  async update(id: number, updateUserDto: UpdateUserDto): Promise<User> {
+    const usersCount = await this.prisma.user.count({ where: { id } });
+
+    if (!usersCount) {
+      throw new NotFoundException(MESSAGES.NOT_FOUND);
+    }
+
     return this.prisma.user.update({
       where: {
         id,
@@ -38,7 +57,13 @@ export class UsersService {
     });
   }
 
-  remove(id: number) {
+  async remove(id: number): Promise<User> {
+    const usersCount = await this.prisma.user.count({ where: { id } });
+
+    if (!usersCount) {
+      throw new NotFoundException(MESSAGES.NOT_FOUND);
+    }
+
     return this.prisma.user.delete({
       where: {
         id,
